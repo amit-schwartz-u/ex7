@@ -1,7 +1,10 @@
 package com.example.ex7.server;
 
+import com.example.ex7.data.SetUserPrettyNameRequest;
 import com.example.ex7.data.Ticket;
+import com.example.ex7.data.TokenResponse;
 import com.example.ex7.data.User;
+import com.example.ex7.data.UserResponse;
 
 import org.json.JSONObject;
 
@@ -10,6 +13,8 @@ import java.util.List;
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
+import retrofit2.http.Header;
+import retrofit2.http.Headers;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
@@ -21,9 +26,17 @@ public interface MyOfficeServerInterface {
     Call<User> connectivityCheck();
 
 
-
     @GET("/users/{user_id}")
     Call<User> getUser(@Path("user_id") String userId);
+
+    @GET("/users/{user_name}")
+    Call<UserResponse> getUserFromServer(@Path("user_name") String userId, @Header("Authorization: token {theToken}") String theToken);
+
+    @GET("/users/{user_name}/token/")
+    Call<TokenResponse> getUserToken(@Path("user_name") String userName);
+
+    @POST
+    Call<UserResponse> postUserPrettyName(@Body SetUserPrettyNameRequest request);
 
 
     @GET("/todos")

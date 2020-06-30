@@ -3,6 +3,7 @@ package com.example.ex7.work;
 import android.content.Context;
 
 import com.example.ex7.data.User;
+import com.example.ex7.data.UserResponse;
 import com.example.ex7.server.MyOfficeServerInterface;
 import com.example.ex7.server.ServerHolder;
 import com.google.gson.Gson;
@@ -25,10 +26,12 @@ public class GetUserWorker extends Worker {
     public Result doWork() {
         MyOfficeServerInterface serverInterface = ServerHolder.getInstance().serverInterface;
 
-        String userId = getInputData().getString("key_user_id");
+        String userName = getInputData().getString("key_user_id");
+        String token = getInputData().getString("token");
+
         try {
-            Response<User> response = serverInterface.getUser(userId).execute();
-            User user = response.body();
+            Response<UserResponse> response = serverInterface.getUserFromServer(userName, token).execute();
+            User user = response.body().data;
             String userAsJson = new Gson().toJson(user);
 
             Data outputData = new Data.Builder()

@@ -18,7 +18,7 @@ public class ServerHolder {
 
         Retrofit retrofit = new Retrofit.Builder()
                 .client(client)
-                .baseUrl("https://jsonplaceholder.typicode.com") // notice the absence of the last slash!
+                .baseUrl("https://hujipostpc2019.pythonanywhere.com") // notice the absence of the last slash!
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
 

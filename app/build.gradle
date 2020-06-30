@@ -35,11 +35,11 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.10.0'
 
     // Retrofit
-    compile 'com.squareup.retrofit2:retrofit:2.1.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.1.0'
 
 // JSON Parsing
-    compile 'com.google.code.gson:gson:2.8.6'
-    compile 'com.squareup.retrofit2:converter-gson:2.1.0'
+    implementation 'com.google.code.gson:gson:2.8.6'
+    implementation 'com.squareup.retrofit2:converter-gson:2.1.0'
 
     implementation 'androidx.work:work-runtime:2.1.0'
 }
