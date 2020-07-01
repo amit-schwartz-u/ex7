@@ -1,14 +1,11 @@
 package com.example.ex7.work;
 
 import android.content.Context;
+import android.util.Log;
 
-import com.example.ex7.data.Ticket;
+import com.example.ex7.data.TokenResponse;
 import com.example.ex7.server.MyOfficeServerInterface;
 import com.example.ex7.server.ServerHolder;
-import com.google.gson.Gson;
-
-
-import org.json.JSONObject;
 
 import java.io.IOException;
 
@@ -18,8 +15,9 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import retrofit2.Response;
 
-public class CreateNewTicketWorker extends Worker {
-    public CreateNewTicketWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
+public class GetTokenWorker extends Worker {
+
+    public GetTokenWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
     }
 
@@ -27,21 +25,19 @@ public class CreateNewTicketWorker extends Worker {
     @Override
     public Result doWork() {
         MyOfficeServerInterface serverInterface = ServerHolder.getInstance().serverInterface;
-
-        String ticketAsJson = getInputData().getString("key_input_ticket");
-        Ticket ticket = new Gson().fromJson(ticketAsJson, Ticket.class);
+        String userName = getInputData().getString("key_user_id");
         try {
-            Response<Ticket> response = serverInterface.insertNewTicket(ticket).execute();
-            Ticket responseBody = response.body();
-            String responseAsJson = new Gson().toJson(responseBody);
+            Response<TokenResponse> response = serverInterface.getUserToken(userName).execute();
+            TokenResponse tokenResponse = response.body();
+
+            Log.e("MainActivity", "got token data: " + tokenResponse.data);
             Data outputData = new Data.Builder()
-                    .putString("key_output", responseAsJson)
+                    .putString("token", tokenResponse.data)
                     .build();
-
             return Result.success(outputData);
-
         } catch (IOException e) {
             e.printStackTrace();
+            Log.e("MainActivity", "didn't get token");
             return Result.retry();
         }
     }

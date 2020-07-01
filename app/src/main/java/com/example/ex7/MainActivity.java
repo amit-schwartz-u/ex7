@@ -1,35 +1,35 @@
 package com.example.ex7;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.example.ex7.data.SetUserPrettyNameRequest;
-import com.example.ex7.data.Ticket;
-import com.example.ex7.data.TokenResponse;
+import com.airbnb.lottie.LottieAnimationView;
+import com.bumptech.glide.Glide;
 import com.example.ex7.data.User;
 import com.example.ex7.data.UserResponse;
-import com.example.ex7.server.MyOfficeServerInterface;
-import com.example.ex7.server.ServerHolder;
 import com.example.ex7.work.ConnectivityCheckWorker;
-import com.example.ex7.work.CreateNewTicketWorker;
+import com.example.ex7.work.GetTokenWorker;
 import com.example.ex7.work.GetUserWorker;
+import com.example.ex7.work.PostNewUserNameWorker;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.Observer;
+import androidx.swiperefreshlayout.widget.CircularProgressDrawable;
 import androidx.work.Constraints;
 import androidx.work.Data;
 import androidx.work.NetworkType;
@@ -38,34 +38,55 @@ import androidx.work.Operation;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
-import retrofit2.Response;
-
 public class MainActivity extends AppCompatActivity {
     private static final String USER_ID = "3";
+    public static final String EMPTY_STRING = "";
     private static String TAG = "MainActivity";
-    public static String token;
+    public String token;
+    public TextView welcomeTextView;
+    public EditText prettyNameEditText;
+    private ImageView userImage;
+    public Button setPrettyNameButton;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        handleUserName();
 
+        welcomeTextView = findViewById(R.id.tv_welcome);
+        prettyNameEditText = findViewById(R.id.et_pretty_name);
 
+        userImage = findViewById(R.id.user_image);
+        setPrettyNameButton = findViewById(R.id.btn_save_pretty_name);
+        token = MyPreferences.getUserTokenFromPreferences(getApplicationContext());
+        if (token == "") {
+            handleUserName();
+        } else {
+            getUser();
+        }
         checkConnectivityAndSetUI();
-        getUser();
-        createSampleTicket();
 
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (!getUserNameFromPreferences().equals("")) {
+            if (checkIfFirstTimeInApp()) {
+                welcomeTextView.setText("welcome, " + getUserNameFromPreferences());
+                Log.d("MainActivity", "calling get token");
+                getToken();
+                setFirstTimeToFalse();
+            }
+        }
     }
 
     private void handleUserName() {
         if (checkIfFirstTimeInApp()) {
-            setFirstTimeToFalse();
             askForUserName();
         }
     }
-
 
 
     private void askForUserName() {
@@ -97,7 +118,6 @@ public class MainActivity extends AppCompatActivity {
                 .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 // if we will remove the constraints - then the connectivity check will happen immediately
                 // if we will add the constraints - then the connectivity check will happen only after we have access to the internet
-
                 .build();
 
         Operation runningWork = WorkManager.getInstance().enqueue(checkConnectivityWork);
@@ -116,11 +136,51 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public void getToken() {
+        UUID workTagUniqueId = UUID.randomUUID();
+        OneTimeWorkRequest checkConnectivityWork = new OneTimeWorkRequest.Builder(GetTokenWorker.class)
+                .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setInputData(new Data.Builder().putString("key_user_id", getUserNameFromPreferences()).build())
+                .addTag(workTagUniqueId.toString())
+                .build();
+
+        WorkManager.getInstance().enqueue(checkConnectivityWork);
+
+        WorkManager.getInstance().getWorkInfosByTagLiveData(workTagUniqueId.toString()).observe(this, new Observer<List<WorkInfo>>() {
+
+            @Override
+            public void onChanged(List<WorkInfo> workInfos) {
+                // we know there will be only 1 work info in this list - the 1 work with that specific tag!
+                // there might be some time until this worker is finished to work (in the mean team we will get an empty list
+                // so check for that
+                if (workInfos == null || workInfos.isEmpty())
+                    return;
+                if (workInfos.get(0).getState() == WorkInfo.State.FAILED ||
+                        workInfos.get(0).getState() != WorkInfo.State.SUCCEEDED) {
+                    return;
+                }
+                WorkInfo info = workInfos.get(0);
+
+                // now we can use it
+                token = info.getOutputData().getString("token");
+
+                Log.d(TAG, "got token: " + token);
+
+                MyPreferences.setUserToken(getApplicationContext(),token);
+                // update UI with the user we got
+                getUser();
+            }
+        });
+    }
+
     private void getUser() {
+        final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this);
+        progressDialog.setTitle("Loading user...");
+        progressDialog.show();
         UUID workTagUniqueId = UUID.randomUUID();
         OneTimeWorkRequest checkConnectivityWork = new OneTimeWorkRequest.Builder(GetUserWorker.class)
                 .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(new Data.Builder().putString("key_user_id", getUserNameFromPreferences()).putString("token", this.token).build())
+                .setInputData(new Data.Builder().putString("token", this.token).build())
                 .addTag(workTagUniqueId.toString())
                 .build();
 
@@ -140,94 +200,100 @@ public class MainActivity extends AppCompatActivity {
                 // now we can use it
                 String userAsJson = info.getOutputData().getString("key_output_user");
                 Log.d(TAG, "got user: " + userAsJson);
+                progressDialog.dismiss();
+                showMainActivityViews();
 
-                User user = new Gson().fromJson(userAsJson, User.class);
-                // update UI with the user we got
-                TextView welcomeTextView = findViewById(R.id.tv_welcome);
-                if (user.pretty_name != "" && user.pretty_name != null) {
-                    welcomeTextView.setText("Welcome again, " + user.pretty_name);
-                } else {
-                    welcomeTextView.setText("Welcome, " + getUserNameFromPreferences());
+                UserResponse userResponse = new Gson().fromJson(userAsJson, UserResponse.class);
+                if (userResponse != null) {
+                    User user = userResponse.data;
+                    // update UI with the user we got
+                    if (user.pretty_name != "" && user.pretty_name != null) {
+                        welcomeTextView.setText("Welcome again, " + user.pretty_name);
+                    } else {
+                        welcomeTextView.setText("Welcome, " + getUserNameFromPreferences());
+                    }
+                    setMainActivityUi(userResponse, user.username);
                 }
             }
         });
     }
 
-    private void getAllTicketsForUser() {
+    public void setNewPrettyName(final String newName) {
+        hideMainActivityViews(); //todo
+        final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this);
+        progressDialog.setTitle("Loading...");
+        progressDialog.show();
+
         UUID workTagUniqueId = UUID.randomUUID();
-        OneTimeWorkRequest checkConnectivityWork = new OneTimeWorkRequest.Builder(GetUserWorker.class)
-                .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(new Data.Builder().putString("key_user_id", USER_ID).build())
+        OneTimeWorkRequest oneTimeWorkRequest = new OneTimeWorkRequest
+                .Builder(PostNewUserNameWorker.class)
+                .setConstraints(new Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setInputData(new Data.Builder().putString("key_get_new_name", newName)
+                        .putString("key_get_token", token).build())
                 .addTag(workTagUniqueId.toString())
                 .build();
 
-        WorkManager.getInstance().enqueue(checkConnectivityWork);
+        WorkManager.getInstance().enqueue(oneTimeWorkRequest);
+        WorkManager.getInstance().getWorkInfosByTagLiveData(workTagUniqueId.toString())
+                .observe(this, new Observer<List<WorkInfo>>() {
+                    @Override
+                    public void onChanged(List<WorkInfo> workInfos) {
+                        if (workInfos == null || workInfos.isEmpty()) {
+                            return;
+                        }
+                        if (workInfos.get(0).getState() == WorkInfo.State.FAILED ||
+                                workInfos.get(0).getState() != WorkInfo.State.SUCCEEDED) {
+                            return;
+                        }
 
-        WorkManager.getInstance().getWorkInfosByTagLiveData(workTagUniqueId.toString()).observe(this, new Observer<List<WorkInfo>>() {
-            @Override
-            public void onChanged(List<WorkInfo> workInfos) {
-                // we know there will be only 1 work info in this list - the 1 work with that specific tag!
-                // there might be some time until this worker is finished to work (in the mean team we will get an empty list
-                // so check for that
-                if (workInfos == null || workInfos.isEmpty())
-                    return;
+                        progressDialog.dismiss();
+                        showMainActivityViews();
 
-                WorkInfo info = workInfos.get(0);
+                        WorkInfo info = workInfos.get(0);
+                        String AsJson = info.getOutputData().getString("key_get_pretty_name");
+                        UserResponse userResponse = new Gson().fromJson(AsJson, UserResponse.class);
 
-                // now we can use it
-                String ticketsAsJson = info.getOutputData().getString("key_output_tickets");
-                List<Ticket> allTickets = new Gson().fromJson(ticketsAsJson, new TypeToken<List<Ticket>>() {
-                }.getType());
+                        String userName = userResponse.data.pretty_name;
+                        if (userName == null || EMPTY_STRING.equals(userName)) {
+                            userName = userResponse.data.username;
+                        }
 
-                Log.d(TAG, "got tickets list with size " + allTickets.size());
-
-
-                // update UI with the list we got
-            }
-        });
+                        setMainActivityUi(userResponse, userName);
+                    }
+                });
     }
 
-
-    private void createSampleTicket() {
-        Ticket ticket = new Ticket();
-        ticket.id = 0;
-        ticket.user_id = Integer.valueOf(USER_ID);
-        ticket.title = "mock ticket";
-        ticket.completed = false;
-
-        String ticketAsJson = new Gson().toJson(ticket);
-
-        UUID workTagUniqueId = UUID.randomUUID();
-        OneTimeWorkRequest checkConnectivityWork = new OneTimeWorkRequest.Builder(CreateNewTicketWorker.class)
-                .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(new Data.Builder().putString("key_input_ticket", ticketAsJson).build())
-                .addTag(workTagUniqueId.toString())
-                .build();
-
-        WorkManager.getInstance().enqueue(checkConnectivityWork);
-
-        WorkManager.getInstance().getWorkInfosByTagLiveData(workTagUniqueId.toString()).observe(this, new Observer<List<WorkInfo>>() {
-            @Override
-            public void onChanged(List<WorkInfo> workInfos) {
-                // we know there will be only 1 work info in this list - the 1 work with that specific tag!
-                // there might be some time until this worker is finished to work (in the mean team we will get an empty list
-                // so check for that
-                if (workInfos == null || workInfos.isEmpty())
-                    return;
-
-                WorkInfo info = workInfos.get(0);
-
-                // now we can use it
-                String ticketAsJson = info.getOutputData().getString("key_output");
-                Log.d(TAG, "got created ticket: " + ticketAsJson);
-                Ticket ticketResponse = new Gson().fromJson(ticketAsJson, Ticket.class);
-
-                // update UI with the ticket response.
-            }
-        });
+    private void setMainActivityUi(UserResponse userResponse, String userPrettyName) {
+        welcomeTextView.setText("Welcome again, " + userPrettyName + "!");
+        CircularProgressDrawable circularProgressDrawable = new
+                CircularProgressDrawable(MainActivity.this);
+        circularProgressDrawable.setStrokeWidth(10f);
+        circularProgressDrawable.setCenterRadius(60f);
+        circularProgressDrawable.start();
+        Glide.with(MainActivity.this)
+                .load(Uri.parse("https://hujipostpc2019.pythonanywhere.com" +
+                        userResponse.data.image_url))
+                .placeholder(circularProgressDrawable)
+                .into(userImage);
     }
 
     public void onClickSetPrettyNameButton(View view) {
-        startActivity(new Intent(MainActivity.this, EditPrettyName.class));
+        String prettyName = prettyNameEditText.getText().toString();
+        setNewPrettyName(prettyName);
+    }
+
+    private void hideMainActivityViews() {
+        welcomeTextView.setVisibility(View.INVISIBLE);
+        prettyNameEditText.setVisibility(View.INVISIBLE);
+        setPrettyNameButton.setVisibility(View.INVISIBLE);
+        userImage.setVisibility(View.INVISIBLE);
+    }
+
+    private void showMainActivityViews() {
+        welcomeTextView.setVisibility(View.VISIBLE);
+        prettyNameEditText.setVisibility(View.VISIBLE);
+        setPrettyNameButton.setVisibility(View.VISIBLE);
+        userImage.setVisibility(View.VISIBLE);
     }
 }

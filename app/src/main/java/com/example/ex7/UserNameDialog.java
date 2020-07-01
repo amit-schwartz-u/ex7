@@ -23,6 +23,7 @@ public class UserNameDialog extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_name_dialog);
+        Log.d("UserNameDialog", "got to UserNameDialog");
     }
 
     public void onClickSaveButton(View view) {
@@ -32,19 +33,7 @@ public class UserNameDialog extends AppCompatActivity {
         String userName = et.getText().toString();
         preferencesEditor.putString("userName", userName);
         preferencesEditor.apply();
-        getToken(userName);
         finish();
     }
 
-    private void getToken(String userName) {
-        MyOfficeServerInterface serverInterface = ServerHolder.getInstance().serverInterface;
-        try {
-            Response<TokenResponse> response = serverInterface.getUserToken(userName).execute();
-            TokenResponse tokenResponse = response.body();
-            MainActivity.token = tokenResponse.data;
-            Log.e("MainActivity", "got token data: " + tokenResponse.data);
-        } catch (IOException e) {
-            Log.e("MainActivity", "didn't get token");
-        }
-    }
 }
