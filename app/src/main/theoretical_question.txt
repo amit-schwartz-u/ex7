@@ -1,0 +1,14 @@
+ 1 pro and 1 con for each of the 2 implementation ways of storing tokens:
+
+ As a client, at the first time you got a token. You have 2 options:
+ a. save the token locally (for example in a file or in SP)
+ b. use this token only in this current app-launch, and re-request a token from the server each time the app launches again
+
+ a:
+ pro: easy to save and use. less requests from server.
+ con: if someone will get there hand on this token the requests will not be secure any more at all.
+
+ b:
+ pro: more secure because we don't use same token every time so the server can verify the client's
+  identity before doing any change with more chances it's the right client.
+ con: more requests from server.
