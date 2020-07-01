@@ -27,7 +27,7 @@ public class PostNewUserNameWorker extends Worker {
     @Override
     public Result doWork() {
         MyOfficeServerInterface serverInterface = ServerHolder.getInstance().serverInterface;
-        String token = "token "; //didn't really understand  y i need to do it like that
+        String token = "token ";
         token += getInputData().getString("key_get_token");
         String newName = getInputData().getString("key_get_new_name");
         try {

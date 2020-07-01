@@ -8,10 +8,12 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.bumptech.glide.Glide;
@@ -39,7 +41,6 @@ import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 
 public class MainActivity extends AppCompatActivity {
-    private static final String USER_ID = "3";
     public static final String EMPTY_STRING = "";
     private static String TAG = "MainActivity";
     public String token;
@@ -201,7 +202,7 @@ public class MainActivity extends AppCompatActivity {
                 String userAsJson = info.getOutputData().getString("key_output_user");
                 Log.d(TAG, "got user: " + userAsJson);
                 progressDialog.dismiss();
-                showMainActivityViews();
+                userImage.setVisibility(View.VISIBLE);
 
                 UserResponse userResponse = new Gson().fromJson(userAsJson, UserResponse.class);
                 if (userResponse != null) {
@@ -219,7 +220,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void setNewPrettyName(final String newName) {
-        hideMainActivityViews(); //todo
         final ProgressDialog progressDialog = new ProgressDialog(MainActivity.this);
         progressDialog.setTitle("Loading...");
         progressDialog.show();
@@ -244,16 +244,16 @@ public class MainActivity extends AppCompatActivity {
                         }
                         if (workInfos.get(0).getState() == WorkInfo.State.FAILED ||
                                 workInfos.get(0).getState() != WorkInfo.State.SUCCEEDED) {
+                            Toast.makeText(MainActivity.this,"Error post", Toast.LENGTH_LONG);
                             return;
                         }
 
                         progressDialog.dismiss();
-                        showMainActivityViews();
 
                         WorkInfo info = workInfos.get(0);
-                        String AsJson = info.getOutputData().getString("key_get_pretty_name");
-                        UserResponse userResponse = new Gson().fromJson(AsJson, UserResponse.class);
-
+                        String userAsJson = info.getOutputData().getString("key_get_pretty_name");
+                        Log.d(TAG, "after post pretty name got user: " + userAsJson);
+                        UserResponse userResponse = new Gson().fromJson(userAsJson, UserResponse.class);
                         String userName = userResponse.data.pretty_name;
                         if (userName == null || EMPTY_STRING.equals(userName)) {
                             userName = userResponse.data.username;
@@ -279,21 +279,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onClickSetPrettyNameButton(View view) {
+        //hide keyboard
+        InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+
         String prettyName = prettyNameEditText.getText().toString();
         setNewPrettyName(prettyName);
     }
 
-    private void hideMainActivityViews() {
-        welcomeTextView.setVisibility(View.INVISIBLE);
-        prettyNameEditText.setVisibility(View.INVISIBLE);
-        setPrettyNameButton.setVisibility(View.INVISIBLE);
-        userImage.setVisibility(View.INVISIBLE);
-    }
-
-    private void showMainActivityViews() {
-        welcomeTextView.setVisibility(View.VISIBLE);
-        prettyNameEditText.setVisibility(View.VISIBLE);
-        setPrettyNameButton.setVisibility(View.VISIBLE);
-        userImage.setVisibility(View.VISIBLE);
-    }
 }

@@ -24,9 +24,7 @@ public interface MyOfficeServerInterface {
     @GET("/users/{user_name}/token/")
     Call<TokenResponse> getUserToken(@Path("user_name") String userName);
 
-    @Headers({
-            "Content-Type:application/json"
-    })
+    @Headers({"Content-Type:application/json"})
     @POST("/user/edit/")
     Call<UserResponse> postUserPrettyName(@Body SetUserPrettyNameRequest request, @Header("Authorization") String token);
 
